@@ -1,0 +1,1478 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>Zombie Hills — Visuals & Weapons Fix</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#07101a;
+      --panel:#0b1220dd;
+      --accent:#ffd166;
+      --muted:#cbd5e1;
+      --active:#2a8fe0;
+    }
+    html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,Arial,Helvetica,sans-serif;overflow:hidden}
+    /* Menu */
+    #menu { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:60 }
+    #menuPanel {
+      background: linear-gradient(180deg,#071225ee,#05101aee);
+      padding:24px; border-radius:12px; color:white; width:560px; text-align:center;
+      box-shadow: 0 12px 48px rgba(0,0,0,0.7);
+    }
+    #menuPanel h1{margin:0 0 8px; font-size:28px}
+    .menuRow{display:flex; gap:8px; justify-content:center; margin:8px 0;}
+    button.btn { background:var(--accent); border:none; padding:10px 14px; border-radius:8px; font-weight:700; cursor:pointer; color:#07101a }
+    button.ghost { background:transparent; border:1px solid rgba(255,255,255,0.08); color:#cfe8ff; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    button.diff { background:transparent; border:1px solid rgba(255,255,255,0.06); color:#bcd; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    button.diff.active { outline:3px solid var(--active); box-shadow:0 6px 18px rgba(42,143,224,0.14); }
+    /* HUD */
+    #hud{position:absolute;left:12px;top:12px;color:var(--muted);z-index:50}
+    #hud div{margin-bottom:6px}
+    #hotbar{position:absolute;left:50%;transform:translateX(-50%);bottom:16px;display:flex;gap:8px;z-index:50}
+    .slot{width:56px;height:56px;border-radius:10px;background:rgba(0,0,0,0.45);border:2px solid rgba(255,255,255,0.06);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#eee;font-size:12px;box-shadow:0 6px 20px rgba(0,0,0,0.45)}
+    .slot.active{outline:3px solid #ffd166}
+    #crosshair{position:absolute;left:50%;top:50%;width:12px;height:12px;margin-left:-6px;margin-top:-6px;border-radius:50%;z-index:40;mix-blend-mode:screen;box-shadow:0 0 6px #fff;pointer-events:none}
+    #weaponPreview { position:absolute; right:12px; top:60px; width:160px; height:140px; background:rgba(0,0,0,0.45); border-radius:10px; padding:8px; color:#eaeff6; z-index:50; display:flex; flex-direction:column; gap:6px; }
+    #weaponPreview .title { font-weight:700; font-size:14px; color:#fff }
+    #weaponPreview .ammo { color:#cfe8ff; opacity:0.9 }
+    #info{position:absolute;right:12px;top:12px;color:#bbb;z-index:30;text-align:right}
+    /* small settings panel */
+    #settingsPanel{display:flex;gap:8px;justify-content:center;margin-top:8px}
+    input[type=range]{width:160px}
+    @media (max-width:600px){
+      #menuPanel{width:92%}
+      .slot{width:46px;height:46px;font-size:11px}
+      #weaponPreview{display:none}
+    }
+  </style>
+</head>
+<body>
+
+<!-- Menu -->
+<div id="menu">
+  <div id="menuPanel">
+    <h1>Zombie Hills — Visual & Weapon Fix</h1>
+    <p style="color:#9fb3c8">Improved trees, mountains, visual sky & fog, visible weapons, and functioning guns.</p>
+
+    <div style="margin-top:12px; text-align:left;">
+      <div style="color:#9fb3c8; margin-bottom:6px">Difficulty (click to select)</div>
+      <div class="menuRow" id="diffRow">
+        <button class="diff" data-diff="easy" onclick="selectDifficulty('easy', this)">Easy</button>
+        <button class="diff active" data-diff="medium" onclick="selectDifficulty('medium', this)">Medium</button>
+        <button class="diff" data-diff="hard" onclick="selectDifficulty('hard', this)">Hard</button>
+        <button class="diff" data-diff="impossible" onclick="selectDifficulty('impossible', this)">Impossible</button>
+        <button class="diff" data-diff="chaos" onclick="selectDifficulty('chaos', this)">Way Too Hard</button>
+      </div>
+    </div>
+
+    <div id="settingsPanel" style="margin-top:10px">
+      <div style="text-align:left">
+        <label style="color:#9fb3c8">Graphics</label><br>
+        <select id="gfx" style="padding:6px;border-radius:6px;">
+          <option>Low</option><option selected>Medium</option><option>High</option>
+        </select>
+      </div>
+      <div style="text-align:left">
+        <label style="color:#9fb3c8">Volume</label><br>
+        <input id="vol" type="range" min="0" max="100" value="60" />
+      </div>
+    </div>
+
+    <div style="margin-top:14px">
+      <button class="btn" onclick="startGame()">Start Game</button>
+      <button class="ghost" onclick="showControls()">Controls</button>
+    </div>
+
+    <div style="margin-top:10px;color:#8fa6bf;font-size:13px">Tip: press 1–9 to switch hotbar. Click to shoot. Move with WASD. E to open chest.</div>
+  </div>
+</div>
+
+<!-- HUD & hotbar -->
+<div id="hud" style="display:none">
+  <div>Health: <span id="health">100</span></div>
+  <div>Score: <span id="score">0</span></div>
+  <div style="margin-top:6px">Mode: <span id="mode">medium</span></div>
+</div>
+
+<div id="info" style="display:none">
+  <div>Enemies: <span id="countEnemies">0</span></div>
+  <div>Day time: <span id="daytime">Day</span></div>
+</div>
+
+<div id="crosshair"></div>
+
+<!-- hotbar -->
+<div id="hotbar" style="display:none">
+  <div class="slot" id="slot0"><div class="label">1</div><div class="count"></div></div>
+  <div class="slot" id="slot1"><div class="label">2</div><div class="count"></div></div>
+  <div class="slot" id="slot2"><div class="label">3</div><div class="count"></div></div>
+  <div class="slot" id="slot3"><div class="label">4</div><div class="count"></div></div>
+  <div class="slot" id="slot4"><div class="label">5</div><div class="count"></div></div>
+  <div class="slot" id="slot5"><div class="label">6</div><div class="count"></div></div>
+  <div class="slot" id="slot6"><div class="label">7</div><div class="count"></div></div>
+  <div class="slot" id="slot7"><div class="label">8</div><div class="count"></div></div>
+  <div class="slot" id="slot8"><div class="label">9</div><div class="count"></div></div>
+</div>
+
+<!-- weapon preview -->
+<div id="weaponPreview" style="display:none">
+  <div class="title" id="weaponName">No weapon</div>
+  <div class="ammo" id="weaponAmmo">Ammo: -</div>
+  <div style="flex:1"></div>
+  <div style="font-size:11px;opacity:0.9;color:#adc8e8">Visible weapon model is on the right side & updates when you switch.</div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+
+<script>
+/* ================= GLOBAL CONFIG & STATE ================= */
+const CONFIG = { gfx: 'Medium', vol: 0.6 };
+const DIFFICULTY_PRESETS = {
+  easy:      { spawnMs: 3800, baseSpeed: 0.018, nightMultiplier: 0.9, maxEnemies: 55 },
+  medium:    { spawnMs: 2500, baseSpeed: 0.028, nightMultiplier: 1.0, maxEnemies: 80 },
+  hard:      { spawnMs: 1600, baseSpeed: 0.036, nightMultiplier: 1.08, maxEnemies: 120 },
+  impossible:{ spawnMs: 1000, baseSpeed: 0.045, nightMultiplier: 1.18, maxEnemies: 180 },
+  chaos:     { spawnMs: 500,  baseSpeed: 0.06,  nightMultiplier: 1.3, maxEnemies: 260 }
+};
+let difficulty = 'medium';
+
+let scene, camera, renderer, sun, ambientLight;
+let player = new THREE.Object3D(), cameraHolder = new THREE.Object3D();
+
+let terrainChunks = {};
+const CHUNK_SIZE = 200;
+let CHUNK_SEGS = 40; // lowered for perf on low gfx
+
+let enemies = [], projectiles = [], pickups = [], villages = [], chests = [];
+let score = 0, playerHP = 100, invincible=false;
+
+const PLAYER_RADIUS = 0.9;
+let inventory = new Array(9).fill(null);
+let currentSlot = 0;
+const WEAPONS = {
+  ak:     { id:'ak', name:'AK', damage:3, cooldown:160, pellets:1, spread:0.01, initAmmo:90, color:'#6d6d6d' },
+  burst:  { id:'burst', name:'Burst', damage:2, cooldown:320, pellets:1, burstCount:3, burstDelay:80, spread:0.014, initAmmo:45, color:'#4a6fa8' },
+  shotgun:{ id:'shotgun', name:'Shotgun', damage:3, cooldown:800, pellets:8, spread:0.18, initAmmo:28, color:'#6b3b2b' },
+  sniper: { id:'sniper', name:'Sniper', damage:20, cooldown:1200, pellets:1, spread:0.0002, initAmmo:10, color:'#222222' },
+  smg:    { id:'smg', name:'SMG', damage:1, cooldown:90, pellets:1, spread:0.04, initAmmo:160, color:'#777777' },
+  grenade:{ id:'grenade', name:'Grenade', damage:35, cooldown:1500, pellets:1, spread:0.02, initAmmo:6, color:'#335533' },
+  dmr:    { id:'dmr', name:'DMR', damage:6, cooldown:420, pellets:1, spread:0.008, initAmmo:36, color:'#555555' },
+  glock:  { id:'glock', name:'Glock 19', damage:2, cooldown:220, pellets:1, spread:0.02, initAmmo:80, color:'#333333' },
+  revolver:{id:'revolver', name:'Revolver', damage:10, cooldown:680, pellets:1, spread:0.01, initAmmo:20, color:'#884444' },
+  minigun:{ id:'minigun', name:'Minigun', damage:1, cooldown:40, pellets:1, spread:0.06, initAmmo:400, color:'#999999' }
+};
+
+// starter weapon
+inventory[0] = { type:'ak', ammo: WEAPONS.ak.initAmmo };
+inventory[1] = { type:'glock', ammo: WEAPONS.glock.initAmmo };
+
+let lastShotTime = 0;
+let yaw=0, pitch=0;
+let dayTime = 0; // 0..1 cycle
+const daySpeed = 0.015;
+
+/* ============ PERF / POOL SETTINGS ============ */
+const MAX_PROJECTILES = 300; // cap projectiles pooled
+const projectilePool = [];
+let projectilePoolIndex = 0; // rotating index - reuse oldest
+const PROJECTILE_GEOMETRY = new THREE.SphereGeometry(0.12, 6, 6); // low-poly sphere for bullets
+const PROJECTILE_MAT = new THREE.MeshBasicMaterial({ color:0xffddaa }); // cheap material
+const ARROW_GEOMETRY = new THREE.CylinderGeometry(0.06, 0.06, 0.9, 6); // low-poly arrow visual
+
+/* ===== helpers ===== */
+function $(id){ return document.getElementById(id) }
+
+/* ===== Menu UI helpers ===== */
+function selectDifficulty(mode, el){
+  difficulty = mode;
+  $('mode').innerText = mode;
+  const buttons = document.querySelectorAll('#diffRow .diff');
+  buttons.forEach(b => b.classList.toggle('active', b === el));
+}
+
+/* show controls */
+function showControls(){ alert("Controls:\nWASD - move\nMouse - look\nClick - shoot\n1-9 - hotbar\nE - open chest\nEsc - release pointer"); }
+
+/* Start */
+function startGame(){
+  CONFIG.gfx = $('gfx').value || 'Medium';
+  CONFIG.vol = parseInt($('vol').value || 60) / 100;
+  document.getElementById('menu').style.display = 'none';
+  $('hud').style.display = 'block';
+  $('hotbar').style.display = 'flex';
+  $('info').style.display = 'block';
+  $('weaponPreview').style.display = 'flex';
+  // adjust chunk detail based on gfx
+  CHUNK_SEGS = (CONFIG.gfx === 'Low') ? 20 : (CONFIG.gfx === 'Medium') ? 32 : 48;
+  initScene();
+}
+
+/* ============ Scene init ============ */
+function initScene(){
+  scene = new THREE.Scene();
+  scene.fog = new THREE.Fog(0x87ceeb, 400, 1200);
+  camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 2500);
+  renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(1.5, window.devicePixelRatio)); // keep pixel ratio sane
+  renderer.shadowMap.enabled = false; // shadows cost a lot; disabled for performance
+  document.body.appendChild(renderer.domElement);
+
+  // lights
+  sun = new THREE.DirectionalLight(0xffffff, 1.0);
+  sun.position.set(80,200,40);
+  scene.add(sun);
+  ambientLight = new THREE.AmbientLight(0x666666, 0.95);
+  scene.add(ambientLight);
+
+  // player + camera
+  player = new THREE.Object3D();
+  cameraHolder = new THREE.Object3D();
+  player.add(cameraHolder);
+  cameraHolder.add(camera);
+  camera.position.set(0, 1.6, 0);
+
+  scene.add(player);
+
+  // initialize projectile pool (cheap meshes reused)
+  initProjectilePool();
+
+  // spawn player in a random biome
+  spawnPlayerInRandomBiome();
+
+  // spawn initial chunks + villages
+  updateTerrain();
+  spawnInitialVillages();
+
+  // start spawners
+  startSpawners();
+
+  // input
+  attachInputHandlers();
+
+  // held gun (3D model attached to camera)
+  createHeldGunModel();
+  refreshHeldGunVisual();
+
+  // update hotbar & HUD
+  updateHotbarUI(); updateHUD();
+
+  lastTick = performance.now();
+  animate();
+}
+
+/* ============ Projectile pool ============ */
+function initProjectilePool(){
+  for(let i=0;i<MAX_PROJECTILES;i++){
+    const m = new THREE.Mesh(PROJECTILE_GEOMETRY, PROJECTILE_MAT);
+    m.visible = false;
+    scene.add(m);
+    projectilePool.push(m);
+  }
+}
+function getPooledProjectile(){
+  // rotate through pool
+  const m = projectilePool[projectilePoolIndex];
+  projectilePoolIndex = (projectilePoolIndex + 1) % projectilePool.length;
+  return m;
+}
+
+/* ============ Terrain & Biomes ============ */
+function pseudoRandom(x,z){ return fract(Math.sin(dot([x,z],[127.1,311.7])) * 43758.5453123); }
+function dot(a,b){ return a[0]*b[0]+a[1]*b[1]; }
+function fract(x){ return x - Math.floor(x); }
+
+function mountainNoise(x,z){
+  const nx = x*0.002, nz = z*0.002;
+  let y = Math.sin(nx*6 + nz*2)*18 + Math.cos(nx*2 - nz*3.5)*10 + Math.sin((nx+nz)*12)*6;
+  y += (pseudoRandom(Math.floor(x*0.07), Math.floor(z*0.07)) - 0.5) * 6;
+  y += Math.sin(x*0.006)*8;
+  return y;
+}
+
+function getBiome(x,z){
+  const v = Math.sin(x*0.0009) + Math.cos(z*0.0008);
+  if(v < -0.6) return 'snow';
+  if(v < -0.1) return 'forest';
+  if(v < 0.2) return 'desert';
+  if(v < 0.6) return 'jungle';
+  return 'mountain';
+}
+
+function createChunk(cx, cz){
+  const key = `${cx},${cz}`;
+  if(terrainChunks[key]) return;
+  const segs = CHUNK_SEGS;
+  const geo = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segs, segs);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const vx = pos.getX(i) + cx;
+    const vz = pos.getZ(i) + cz;
+    pos.setY(i, mountainNoise(vx, vz));
+  }
+  geo.computeVertexNormals();
+
+  const b = getBiome(cx, cz);
+  let color = 0x3b5d3a;
+  if(b === 'desert') color = 0xd7c68a;
+  if(b === 'snow') color = 0xe6f0ff;
+  if(b === 'jungle') color = 0x2b7a2b;
+  if(b === 'mountain') color = 0x7b7b7b;
+  const mat = new THREE.MeshStandardMaterial({ color, side: THREE.DoubleSide });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.receiveShadow = false;
+  mesh.position.set(cx, 0, cz);
+  scene.add(mesh);
+
+  spawnVegetationForChunk(cx, cz, b);
+
+  // lower village chance a bit; still random
+  if(Math.random() < 0.06) spawnVillage(cx, cz);
+  if(b === 'jungle' && Math.random() < 0.04) spawnTemple(cx, cz);
+
+  terrainChunks[key] = { mesh, cx, cz, biome: b };
+}
+
+function spawnVegetationForChunk(cx, cz, biome){
+  const baseCount = (biome === 'forest' || biome === 'jungle') ? 10 : (biome==='desert'?3:5);
+  for(let i=0;i<baseCount;i++){
+    const x = cx + (Math.random()-0.5) * CHUNK_SIZE;
+    const z = cz + (Math.random()-0.5) * CHUNK_SIZE;
+    const y = mountainNoise(x,z) + 0.5;
+    const slope = Math.abs(mountainNoise(x+2,z) - mountainNoise(x-2,z)) + Math.abs(mountainNoise(x,z+2) - mountainNoise(x,z-2));
+    if(slope > 24) continue;
+    if(biome === 'desert'){
+      if(Math.random()<0.6){
+        const cactus = new THREE.Mesh(new THREE.ConeGeometry(2.2,6,6), new THREE.MeshStandardMaterial({color:0xc8b07a}));
+        cactus.position.set(x, y+3, z);
+        scene.add(cactus);
+      }
+    } else if(biome === 'mountain'){
+      if(Math.random() < 0.35){
+        const rock = new THREE.Mesh(new THREE.ConeGeometry(3 + Math.random()*5, 8 + Math.random()*12, 6), new THREE.MeshStandardMaterial({color:0x8a7f7f}));
+        rock.position.set(x, y + 4, z);
+        scene.add(rock);
+      }
+    } else {
+      if(Math.random() < 0.12){
+        const trunkH = 14 + Math.random()*10;
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(1.4,1.8, trunkH, 8), new THREE.MeshStandardMaterial({color:0x6b3f2b}));
+        trunk.position.set(x, y + trunkH/2, z);
+        const canopy = new THREE.Mesh(new THREE.SphereGeometry(5 + Math.random()*3, 10, 8), new THREE.MeshStandardMaterial({color:0x1e6b1e}));
+        canopy.position.set(0, trunkH/2 + 2.2, 0);
+        trunk.add(canopy);
+        scene.add(trunk);
+      } else {
+        const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.4,0.6,5 + Math.random()*3, 8), new THREE.MeshStandardMaterial({color:0x6b3f2b}));
+        trunk.position.set(x, y + 2.5, z);
+        const leaves = new THREE.Mesh(new THREE.SphereGeometry(2.6 + Math.random()*1.6, 8, 8), new THREE.MeshStandardMaterial({color:0x2f7a2f}));
+        leaves.position.set(0, 3.4, 0);
+        trunk.add(leaves);
+        scene.add(trunk);
+      }
+    }
+  }
+}
+
+function updateTerrain(){
+  const px = Math.round(player.position.x / CHUNK_SIZE) * CHUNK_SIZE;
+  const pz = Math.round(player.position.z / CHUNK_SIZE) * CHUNK_SIZE;
+  const range = (CONFIG.gfx === 'Low') ? 1 : (CONFIG.gfx === 'Medium' ? 2 : 3);
+  for(let dx=-range; dx<=range; dx++){
+    for(let dz=-range; dz<=range; dz++){
+      createChunk(px + dx*CHUNK_SIZE, pz + dz*CHUNK_SIZE);
+    }
+  }
+  // cleanup far chunks
+  const keys = Object.keys(terrainChunks);
+  for(const k of keys){
+    const ch = terrainChunks[k];
+    const dist = Math.max(Math.abs(ch.cx - px), Math.abs(ch.cz - pz))/CHUNK_SIZE;
+    if(dist > (range+1)){
+      try{ scene.remove(ch.mesh); delete terrainChunks[k]; }catch(e){}
+    }
+  }
+  const curBiome = getBiome(player.position.x, player.position.z);
+  if(curBiome === 'snow'){ scene.background = new THREE.Color(0xbfe6ff); scene.fog.color.set(0xbfe6ff); }
+  else if(curBiome === 'desert'){ scene.background = new THREE.Color(0xf2e7c3); scene.fog.color.set(0xf2e7c3); }
+  else if(curBiome === 'jungle'){ scene.background = new THREE.Color(0x80b380); scene.fog.color.set(0x80b380); }
+  else if(curBiome === 'mountain'){ scene.background = new THREE.Color(0xbfc7d2); scene.fog.color.set(0xbfc7d2); }
+  else { scene.background = new THREE.Color(0x87ceeb); scene.fog.color.set(0x87ceeb); }
+}
+
+/* ============ Structures: Villages, Temples, Chests ============ */
+function spawnVillage(cx, cz){
+  // create a small village made of a few houses instead of a single flat board
+  const baseX = cx + (Math.random()-0.5) * 80;
+  const baseZ = cz + (Math.random()-0.5) * 80;
+  const villageSize = 18 + Math.floor(Math.random()*12);
+  const houseCount = 3 + Math.floor(Math.random()*4);
+  const centerY = mountainNoise(baseX, baseZ) + 0.3;
+
+  const villageObj = new THREE.Group();
+  villageObj.position.set(baseX, centerY, baseZ);
+
+  for(let i=0;i<houseCount;i++){
+    const hx = (Math.random()-0.5) * villageSize;
+    const hz = (Math.random()-0.5) * villageSize;
+    const wx = baseX + hx;
+    const wz = baseZ + hz;
+    const hy = mountainNoise(wx, wz) + 0.5;
+    const house = createHouse();
+    house.position.set(hx, hy - centerY, hz);
+    villageObj.add(house);
+    // small crates / decoration
+    if(Math.random() < 0.5){
+      const crate = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.8,1.2), new THREE.MeshStandardMaterial({color:0x8b5a2b}));
+      crate.position.set(hx + 2*(Math.random()-0.5), hy - centerY + 0.5, hz + 1*(Math.random()-0.5));
+      villageObj.add(crate);
+    }
+  }
+  scene.add(villageObj);
+  // add chests near the village (not flat)
+  spawnChest(baseX + 4, baseZ + 3);
+  spawnChest(baseX - 3, baseZ - 4);
+  villages.push({x:baseX, y:centerY, z:baseZ, size: villageSize});
+}
+
+function createHouse(){
+  const g = new THREE.Group();
+  const wallMat = new THREE.MeshStandardMaterial({color:0xd6b48c});
+  const roofMat = new THREE.MeshStandardMaterial({color:0x6b2b2b});
+  const walls = new THREE.Mesh(new THREE.BoxGeometry(3.4,2.2,2.8), wallMat);
+  walls.position.y = 1.1;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2.6,1.6,4), roofMat);
+  roof.rotation.y = Math.PI/4;
+  roof.position.y = 2.4;
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.7,1.2,0.1), new THREE.MeshStandardMaterial({color:0x442200}));
+  door.position.set(1.3, 0.6, 0);
+  g.add(walls, roof, door);
+  return g;
+}
+
+function spawnTemple(cx, cz){
+  const x = cx + (Math.random()-0.5) * 60;
+  const z = cz + (Math.random()-0.5) * 60;
+  const y = mountainNoise(x,z) + 4.0;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(18,8,18), new THREE.MeshStandardMaterial({color:0x777755}));
+  base.position.set(x, y, z);
+  scene.add(base);
+  spawnChest(x, z, true);
+}
+
+function spawnChest(x, z, rare=false){
+  const y = mountainNoise(x,z) + 1.2;
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(1.6,1.1,1.2), new THREE.MeshStandardMaterial({color:rare?0xffdd88:0xaa7722}));
+  chest.position.set(x, y, z);
+  chest.userData = { isChest:true, opened:false, rare };
+  scene.add(chest);
+  chests.push(chest);
+}
+
+/* open chest and give loot */
+function openChest(chest){
+  if(!chest || chest.userData.opened) return;
+  chest.userData.opened = true;
+  const r = Math.random();
+  if(chest.userData.rare){
+    addWeaponToInventory(randomWeaponKey(), Math.floor(Math.random()*60)+40);
+    score += 400;
+  } else {
+    if(r < 0.5) addWeaponToInventory(randomWeaponKey(), Math.floor(Math.random()*30)+20);
+    else if(r < 0.8){
+      for(let i=0;i<2;i++) spawnPickup(chest.position.x + (Math.random()-0.5)*2, chest.position.z + (Math.random()-0.5)*2, 'ammo');
+    } else addHealthPack();
+    score += 120;
+  }
+  chest.material.color.set(0x333333);
+}
+
+/* ============ Pickups & Inventory ============ */
+function addWeaponToInventory(type, ammoGiven){
+  let added=false;
+  for(let i=0;i<9;i++){
+    if(inventory[i] && inventory[i].type === type){ inventory[i].ammo += ammoGiven; added=true; break; }
+  }
+  if(!added){
+    for(let i=0;i<9;i++){ if(!inventory[i]){ inventory[i] = { type, ammo: Math.max(10, ammoGiven) }; added=true; break; } }
+  }
+  if(!added){ inventory[currentSlot] = { type, ammo: Math.max(10, ammoGiven) }; }
+  updateHotbarUI(); refreshHeldGunVisual();
+}
+
+function addHealthPack(){
+  let placed=false;
+  for(let i=0;i<9;i++){ if(!inventory[i]){ inventory[i] = { type:'health', count:1 }; placed=true; break; } }
+  if(!placed) inventory[currentSlot] = { type:'health', count:1 };
+  updateHotbarUI();
+}
+
+function spawnPickup(x,z,kind='weapon'){
+  const y = mountainNoise(x,z) + 1.6;
+  let mesh;
+  if(kind === 'ammo'){
+    mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.6,1.0), new THREE.MeshStandardMaterial({color:0x113355}));
+    mesh.userData = { isAmmo:true };
+  } else if(kind === 'health'){
+    mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2,0.6,1.0), new THREE.MeshStandardMaterial({color:0xaa1111}));
+    mesh.userData = { isHealth:true };
+  } else {
+    const keys = Object.keys(WEAPONS);
+    const type = keys[Math.floor(Math.random()*keys.length)];
+    mesh = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.6,0.6), new THREE.MeshStandardMaterial({color:WEAPONS[type].color}));
+    mesh.userData = { isWeapon:true, wtype:type, ammo: Math.floor(WEAPONS[type].initAmmo * 0.6) };
+  }
+  mesh.position.set(x,y,z);
+  scene.add(mesh);
+  pickups.push(mesh);
+}
+
+/* check pickups near player */
+function checkPickups(){
+  for(let i=pickups.length-1;i>=0;i--){
+    const p = pickups[i];
+    const d = player.position.distanceTo(p.position);
+    if(d < 3.0){
+      if(p.userData.isWeapon) addWeaponToInventory(p.userData.wtype, p.userData.ammo || 20);
+      else if(p.userData.isAmmo){
+        const cur = inventory[currentSlot];
+        if(cur && WEAPONS[cur.type]) cur.ammo += 20;
+      } else if(p.userData.isHealth) addHealthPack();
+      try{ scene.remove(p); }catch(e){}
+      pickups.splice(i,1);
+      updateHotbarUI(); refreshHeldGunVisual();
+    }
+  }
+}
+
+/* ============ Enemies (spawning & AI) ============ */
+function spawnEnemy(){
+  // zombies only spawn at night
+  if(!isNight()) return;
+  const preset = DIFFICULTY_PRESETS[difficulty];
+  if(enemies.length > preset.maxEnemies) return;
+  const range = 200;
+  const ex = player.position.x + (Math.random()-0.5)*range;
+  const ez = player.position.z + (Math.random()-0.5)*range;
+  // avoid spawning inside villages
+  for(const v of villages){
+    const dx = ex - v.x, dz = ez - v.z;
+    if(Math.sqrt(dx*dx + dz*dz) < v.size) return;
+  }
+  const h = mountainNoise(ex, ez) + 1.2;
+  const g = new THREE.Group();
+  const color = Math.random() < 0.12 ? 0xff4444 : 0x66bb66;
+  const mat = new THREE.MeshStandardMaterial({ color, roughness:0.9, metalness:0.0 });
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(1.2,1.6,0.9), mat);
+  torso.position.y = 0.9;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.4, 6,6), new THREE.MeshStandardMaterial({color:0x222222}));
+  head.position.y = 1.8;
+  g.add(torso, head);
+  g.position.set(ex, h, ez);
+  g.userData = {
+    hp: Math.random() < 0.1 ? 10 : Math.floor(Math.random()*3)+2,
+    maxHp: 3,
+    speedFactor: DIFFICULTY_PRESETS[difficulty].baseSpeed * (Math.random()*0.22 + 0.9),
+    touchDamage: (Math.random() < 0.15) ? 12 : 6,
+    archer: Math.random() < 0.22
+  };
+  const box = new THREE.Box3().setFromObject(g); const sph = new THREE.Sphere(); box.getBoundingSphere(sph);
+  g.userData.hitRadius = sph.radius || 0.9;
+  scene.add(g); enemies.push(g);
+}
+
+/* archer shoots arrow (arrows are pooled as well) */
+function enemyShootArrow(enemy){
+  // arrows only if night (enemy spawn already checks but double-check)
+  if(!isNight()) return;
+  const origin = new THREE.Vector3().copy(enemy.position);
+  const dir = new THREE.Vector3(player.position.x - origin.x, (player.position.y - origin.y)*0.15, player.position.z - origin.z).normalize();
+  spawnProjectile(origin, dir, 140, 5000, 0.12, 6, 0x8b5a2b, 'arrow');
+}
+
+/* ============ Projectiles ============ */
+function spawnProjectile(origin, direction, speed, lifeMs, radius, damage, color=0xffddaa, kind='bullet'){
+  // Use pooled projectiles for bullets/arrows to avoid many allocations
+  if((kind === 'bullet' || kind === 'arrow') && projectilePool.length > 0){
+    const m = getPooledProjectile();
+    m.visible = true;
+    m.position.copy(origin);
+    m.scale.set(1,1,1);
+    // store kinetic data
+    m.userData = {
+      vel: new THREE.Vector3(direction.x*speed, direction.y*speed, direction.z*speed),
+      spawnTime: performance.now(),
+      lifeMs, damage, radius, kind, color
+    };
+    // color can be applied quickly
+    m.material.color.set(color);
+    projectiles.push(m);
+    return m;
+  }
+  // fallback (grenades or if pool empty) create ephemeral mesh
+  const geom = new THREE.SphereGeometry(radius, 8, 8);
+  const mat = new THREE.MeshBasicMaterial({ color });
+  const m = new THREE.Mesh(geom, mat);
+  m.position.copy(origin);
+  m.userData = {
+    vel: new THREE.Vector3(direction.x*speed, direction.y*speed, direction.z*speed),
+    spawnTime: performance.now(),
+    lifeMs, damage, radius, kind
+  };
+  scene.add(m);
+  projectiles.push(m);
+  return m;
+}
+
+function explodeAt(pos, radius=8, damage=40){
+  const g = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), new THREE.MeshBasicMaterial({ color:0xffa94d, transparent:true, opacity:0.9 }));
+  g.position.copy(pos); scene.add(g);
+  const start = performance.now();
+  const dur = 220;
+  const id = setInterval(()=>{
+    const t = (performance.now()-start)/dur;
+    if(t>=1){ try{ scene.remove(g); }catch(e){} clearInterval(id); return;}
+    g.scale.setScalar(1 + t*radius*0.25);
+    g.material.opacity = 0.95*(1 - t);
+  }, 16);
+
+  for(let i=enemies.length-1;i>=0;i--){
+    const e = enemies[i];
+    const d = e.position.distanceTo(pos);
+    if(d < radius){
+      e.userData.hp -= Math.max(0, Math.floor(damage * (1 - d / radius)));
+      if(e.userData.hp <= 0){ try{ scene.remove(e); }catch(e){} enemies.splice(i,1); score += 100; $('score').innerText = score; }
+    }
+  }
+}
+
+/* ============ Projectiles update & collisions ============ */
+function updateProjectiles(dt){
+  const now = performance.now();
+  for(let i=projectiles.length-1;i>=0;i--){
+    const p = projectiles[i];
+    // make sure p has userData (it should)
+    const ud = p.userData || {};
+    // move
+    p.position.x += ud.vel.x * dt;
+    p.position.y += ud.vel.y * dt;
+    p.position.z += ud.vel.z * dt;
+
+    if(ud.kind === 'grenade'){
+      ud.vel.y -= 30 * dt;
+      ud.grenadeTimer = (ud.grenadeTimer === undefined) ? 0.8 : ud.grenadeTimer - dt;
+      const groundY = mountainNoise(p.position.x, p.position.z) + 1.2;
+      if(p.position.y <= groundY){
+        p.position.y = groundY;
+        ud.vel.set(0,0,0);
+        ud.grenadeTimer = Math.min(ud.grenadeTimer, 0.14);
+      }
+      if(ud.grenadeTimer <= 0){
+        explodeAt(p.position, 10, ud.damage);
+        try{ if(p.geometry) p.geometry.dispose(); scene.remove(p); }catch(e){} projectiles.splice(i,1); continue;
+      }
+    }
+
+    if(now - ud.spawnTime > ud.lifeMs){
+      // return pooled projectile to invisible state instead of disposing
+      if(projectilePool.indexOf(p) >= 0){
+        p.visible = false;
+        p.userData = null;
+      } else {
+        try{ if(p.geometry) p.geometry.dispose(); scene.remove(p); }catch(e){}
+      }
+      projectiles.splice(i,1); continue;
+    }
+
+    if(ud.kind === 'bullet' || ud.kind === 'arrow'){
+      // collision: check against enemies
+      for(let j=enemies.length-1;j>=0;j--){
+        const e = enemies[j];
+        const dist = p.position.distanceTo(e.position);
+        if(dist < (e.userData.hitRadius || 1.0) + (ud.radius || 0.12)){
+          e.userData.hp -= ud.damage;
+          // return projectile to pool (don't remove mesh from scene)
+          if(projectilePool.indexOf(p) >= 0){
+            p.visible = false;
+            p.userData = null;
+          } else {
+            try{ scene.remove(p); }catch(e){}
+          }
+          projectiles.splice(i,1);
+          // hit reaction
+          e.scale.set(1.06,1.06,1.06);
+          setTimeout(()=>{ try{ if(e) e.scale.set(1,1,1);}catch(e){} },80);
+          if(e.userData.hp <= 0){
+            score += Math.max(50, Math.floor(e.userData.maxHp * 100));
+            try{ scene.remove(e); }catch(e){} enemies.splice(j,1); $('score').innerText = score;
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
+/* ============ Enemies update ============ */
+function updateEnemies(dt){
+  for(let i=enemies.length-1;i>=0;i--){
+    const e = enemies[i];
+    const dx = player.position.x - e.position.x;
+    const dz = player.position.z - e.position.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+    const speed = e.userData.speedFactor * (isNight() ? DIFFICULTY_PRESETS[difficulty].nightMultiplier : 1.0);
+    if(dist > 0.9){
+      e.position.x += (dx/dist) * speed;
+      e.position.z += (dz/dist) * speed;
+    }
+    e.position.y = mountainNoise(e.position.x, e.position.z) + 1.2;
+    if(dist < (e.userData.hitRadius || 0.9) + PLAYER_RADIUS) {
+      applyPlayerDamage(e.userData.touchDamage || 6);
+      e.position.x -= (dx/dist) * 0.6; e.position.z -= (dz/dist) * 0.6;
+    }
+    if(e.userData.archer && Math.random() < 0.007) enemyShootArrow(e);
+    if(e.userData.hp <= 0){ try{ scene.remove(e); }catch(e){} enemies.splice(i,1); }
+  }
+  $('countEnemies').innerText = enemies.length;
+}
+
+/* ============ Player damage/health ============ */
+function applyPlayerDamage(amount){
+  if(invincible) return;
+  playerHP -= amount; if(playerHP < 0) playerHP = 0;
+  invincible = true; setTimeout(()=>invincible=false, 1200);
+  updateHUD();
+  if(playerHP <= 0){ alert('Game Over! Score: ' + score); location.reload(); }
+}
+
+/* ============ Spawners & loops ============ */
+let spawnIntervalId = null;
+function startSpawners(){
+  const preset = DIFFICULTY_PRESETS[difficulty];
+  if(spawnIntervalId) clearInterval(spawnIntervalId);
+  // Use a controlled spawner that only adds enemies at night (spawnEnemy also checks isNight)
+  spawnIntervalId = setInterval(spawnEnemy, preset.spawnMs);
+  setInterval(()=> {
+    // pickups are ok day or night
+    const r = Math.random();
+    const rx = player.position.x + (Math.random()-0.5)*80;
+    const rz = player.position.z + (Math.random()-0.5)*80;
+    if(r < 0.6) spawnPickup(rx, rz, 'weapon');
+    else if(r < 0.85) spawnPickup(rx, rz, 'ammo');
+    else spawnPickup(rx, rz, 'health');
+  }, 9000);
+}
+
+/* spawn initial villages */
+function spawnInitialVillages(){
+  for(let x=-2;x<=2;x++){
+    for(let z=-2;z<=2;z++){
+      if(Math.random() < 0.12) spawnVillage(x*CHUNK_SIZE, z*CHUNK_SIZE);
+    }
+  }
+}
+
+/* ============ Hotbar UI & switching ============ */
+function updateHotbarUI(){
+  for(let i=0;i<9;i++){
+    const el = $('slot'+i);
+    el.classList.toggle('active', i === currentSlot);
+    const it = inventory[i];
+    if(it){
+      if(it.type === 'health'){
+        el.querySelector('.label').innerText = (i+1) + ' - HEAL';
+        el.querySelector('.count').innerText = 'x' + (it.count||1);
+      } else {
+        const w = WEAPONS[it.type];
+        el.querySelector('.label').innerText = (i+1) + ' - ' + (w ? w.name : it.type);
+        el.querySelector('.count').innerText = (it.ammo!==undefined ? it.ammo + ' ammo' : '');
+      }
+    } else {
+      el.querySelector('.label').innerText = (i+1);
+      el.querySelector('.count').innerText = '';
+    }
+  }
+  refreshHeldGunVisual();
+}
+
+/* ============ Held gun model & preview (visible on side) ============ */
+let heldGun = null;
+function createHeldGunModel(){
+  if(!camera) return;
+  heldGun = new THREE.Group();
+  camera.add(heldGun);
+  heldGun.position.set(0.6, -0.6, -1.4);
+}
+
+function refreshHeldGunVisual(){
+  if(!heldGun) return;
+  while(heldGun.children.length) heldGun.remove(heldGun.children[0]);
+  const slot = inventory[currentSlot];
+  const type = slot ? slot.type : null;
+  if(type && WEAPONS[type]) {
+    $('weaponName').innerText = WEAPONS[type].name;
+    $('weaponAmmo').innerText = 'Ammo: ' + (slot.ammo !== undefined ? slot.ammo : '-');
+  } else {
+    $('weaponName').innerText = 'No weapon';
+    $('weaponAmmo').innerText = 'Ammo: -';
+  }
+  const mat = new THREE.MeshStandardMaterial({ color: type ? WEAPONS[type].color : 0x555555, metalness: 0.2, roughness: 0.6 });
+  if(!type) return;
+  if(type === 'ak' || type === 'dmr' || type === 'burst'){
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.18,1.0), mat);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.04,0.04,0.8,8), mat); barrel.rotation.x = Math.PI/2; barrel.position.z = -0.8;
+    const stock = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.14,0.5), new THREE.MeshStandardMaterial({color:0x6b3f2b}));
+    stock.position.z = 0.6;
+    heldGun.add(body, barrel, stock);
+  } else if(type === 'shotgun'){
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.22,0.18,0.9), mat);
+    const pump = new THREE.Mesh(new THREE.BoxGeometry(0.14,0.06,0.45), new THREE.MeshStandardMaterial({color:0x6b3f2b}));
+    pump.position.z = -0.15; heldGun.add(body, pump);
+  } else if(type === 'sniper'){
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.34,0.18,1.6), mat);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,1.2,8), mat); barrel.rotation.x = Math.PI/2; barrel.position.z = -1.0;
+    const scope = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.06,0.6), new THREE.MeshStandardMaterial({color:0x222222}));
+    scope.position.z = -0.3; heldGun.add(body, barrel, scope);
+  } else if(type === 'smg' || type === 'glock' || type === 'revolver'){
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.18,0.14,0.55), mat);
+    const mag = new THREE.Mesh(new THREE.BoxGeometry(0.06,0.12,0.18), new THREE.MeshStandardMaterial({color:0x111111}));
+    mag.position.set(0,-0.08,0.08); heldGun.add(body, mag);
+  } else if(type === 'minigun'){
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,0.9,8), mat); body.rotation.x = Math.PI/2;
+    heldGun.add(body);
+  } else if(type === 'grenade'){
+    const g = new THREE.Mesh(new THREE.SphereGeometry(0.16,8,8), mat); g.position.set(0,0,-0.5);
+    heldGun.add(g);
+  }
+  heldGun.position.set(0.6, -0.6, -1.4);
+}
+
+/* ============ Shooting (guns actually work) ============ */
+function doShoot(){
+  const item = inventory[currentSlot];
+  if(!item || !WEAPONS[item.type]) return;
+  const w = WEAPONS[item.type];
+  const now = performance.now();
+  if(now - lastShotTime < w.cooldown) return;
+  if(item.ammo <= 0) return;
+  lastShotTime = now;
+  item.ammo = Math.max(0, item.ammo - 1);
+  updateHotbarUI();
+
+  const origin = new THREE.Vector3(); camera.getWorldPosition(origin);
+  const forward = new THREE.Vector3(); camera.getWorldDirection(forward);
+  const baseSpeed = 320;
+
+  // muzzle flash (brief)
+  spawnMuzzleFlash(origin, forward);
+
+  if(item.type === 'grenade'){
+    const dir = forward.clone().add(new THREE.Vector3((Math.random()-0.5)*0.02, 0.25, 0));
+    spawnProjectile(origin.clone(), dir.normalize(), 80, 4000, 0.18, w.damage, 0x558855, 'grenade');
+  } else if(item.type === 'burst' && w.burstCount){
+    for(let b=0;b<w.burstCount;b++){
+      setTimeout(()=> {
+        for(let p=0;p<(w.pellets||1);p++){
+          const rx = (Math.random()-0.5) * (w.spread || 0.02);
+          const ry = (Math.random()-0.5) * (w.spread || 0.02);
+          const dir = forward.clone().add(new THREE.Vector3(rx,ry,0)).normalize();
+          spawnProjectile(origin.clone(), dir, baseSpeed, 2200, 0.12, w.damage, 0xffddaa, 'bullet');
+        }
+      }, b * (w.burstDelay || 70));
+    }
+  } else {
+    for(let p=0;p<(w.pellets||1);p++){
+      const rx = (Math.random()-0.5) * (w.spread || 0.02);
+      const ry = (Math.random()-0.5) * (w.spread || 0.02);
+      const dir = forward.clone().add(new THREE.Vector3(rx,ry,0)).normalize();
+      spawnProjectile(origin.clone(), dir, baseSpeed, 2200, 0.12, w.damage, 0xffddaa, 'bullet');
+    }
+  }
+}
+
+/* muzzle flash: quick small bright sphere that disappears */
+function spawnMuzzleFlash(origin, forward){
+  const flash = new THREE.Mesh(new THREE.SphereGeometry(0.12,6,6), new THREE.MeshBasicMaterial({color:0xfff7c8}));
+  flash.position.copy(origin).add(forward.clone().multiplyScalar(0.8));
+  scene.add(flash);
+  setTimeout(()=>{ try{ scene.remove(flash); }catch(e){} }, 80);
+}
+
+/* ============ Input handlers ============ */
+const keys = {};
+function attachInputHandlers(){
+  window.addEventListener('keydown', (e)=>{
+    keys[e.key.toLowerCase()] = true;
+    if(e.key >= '1' && e.key <= '9'){ currentSlot = parseInt(e.key)-1; updateHotbarUI(); }
+    if(e.key.toLowerCase() === 'e'){
+      for(const c of chests){ if(c.userData && !c.userData.opened && player.position.distanceTo(c.position) < 3.0){ openChest(c); break; } }
+    }
+  });
+  window.addEventListener('keyup', (e)=> keys[e.key.toLowerCase()] = false);
+  window.addEventListener('mousemove', (e)=>{
+    if(document.pointerLockElement !== document.body) return;
+    yaw -= e.movementX * 0.0025; pitch -= e.movementY * 0.0025; pitch = Math.max(-1.4, Math.min(1.4, pitch));
+    player.rotation.y = yaw; cameraHolder.rotation.x = pitch;
+  });
+  window.addEventListener('click', (e)=>{
+    if(document.pointerLockElement !== document.body){ document.body.requestPointerLock?.(); return; }
+    doShoot();
+  });
+  window.addEventListener('resize', ()=>{ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+}
+
+/* ============ Day / Night ============ */
+function isNight(){ return dayTime > 0.5; }
+function updateDayNight(dt){
+  dayTime += daySpeed * dt * 0.025;
+  if(dayTime > 1) dayTime = 0;
+  const t = dayTime * Math.PI * 2;
+  sun.position.set(Math.cos(t)*200, Math.sin(t)*200, 40);
+  if(isNight()){
+    scene.background = new THREE.Color(0x071226);
+    ambientLight.intensity = 0.35;
+    sun.intensity = 0.2;
+    scene.fog.color.set(0x020418);
+  } else {
+    ambientLight.intensity = 0.9;
+    sun.intensity = 1.0;
+    // restore biome fog color in updateTerrain later
+  }
+  $('daytime').innerText = isNight() ? 'Night' : 'Day';
+}
+
+/* ============ HUD ============ */
+function updateHUD(){
+  $('health').innerText = Math.max(0, Math.round(playerHP));
+  $('score').innerText = score;
+  $('mode').innerText = difficulty;
+}
+
+/* ============ Cleanup ============ */
+function cullFarObjects(){
+  const maxDist = 1400;
+  for(let i=projectiles.length-1;i>=0;i--){ if(projectiles[i].position.distanceTo(player.position) > maxDist){ 
+    // return pooled projectiles to invisible instead of removing
+    const p = projectiles[i];
+    if(projectilePool.indexOf(p) >= 0){ p.visible = false; p.userData = null; }
+    else try{ scene.remove(p); }catch(e){}
+    projectiles.splice(i,1);
+  } }
+  for(let i=pickups.length-1;i>=0;i--){ if(pickups[i].position.distanceTo(player.position) > maxDist){ try{ scene.remove(pickups[i]); }catch(e){} pickups.splice(i,1); } }
+  for(let i=enemies.length-1;i>=0;i--){ if(enemies[i].position.distanceTo(player.position) > maxDist*1.2){ try{ scene.remove(enemies[i]); }catch(e){} enemies.splice(i,1); } }
+}
+
+/* ============ Small helpers ============ */
+function randomWeaponKey(){ const keys = Object.keys(WEAPONS); return keys[Math.floor(Math.random()*keys.length)]; }
+
+/* spawn player in a random biome (user requested random biome spawn) */
+function spawnPlayerInRandomBiome(){
+  // try to find a nice spot; limit attempts
+  for(let attempt=0; attempt<120; attempt++){
+    const rx = (Math.random()-0.5) * 2000;
+    const rz = (Math.random()-0.5) * 2000;
+    const b = getBiome(rx, rz);
+    // pick any biome randomly (equal chance); you can bias if you want
+    // accept if terrain slope fairly gentle
+    const slope = Math.abs(mountainNoise(rx+2,rz) - mountainNoise(rx-2,rz)) + Math.abs(mountainNoise(rx,rz+2) - mountainNoise(rx,rz-2));
+    if(slope > 30) continue;
+    const y = mountainNoise(rx, rz) + 1.6;
+    player.position.set(rx, y, rz);
+    break;
+  }
+}
+
+/* ============ Main loop ============ */
+let lastTick = performance.now();
+function animate(){
+  requestAnimationFrame(animate);
+  const now = performance.now(); const dt = (now - lastTick)/1000; lastTick = now;
+
+  // movement
+  let speed = keys['shift'] ? 3.0 : 1.6;
+  const moveSpeed = speed * (CONFIG.gfx === 'Low' ? 0.85 : 1) * dt * 12;
+  if(keys['w']) player.translateZ(-moveSpeed);
+  if(keys['s']) player.translateZ(moveSpeed);
+  if(keys['a']) player.translateX(-moveSpeed);
+  if(keys['d']) player.translateX(moveSpeed);
+  player.position.y = mountainNoise(player.position.x, player.position.z) + 1.6;
+
+  updateTerrain();
+  updateProjectiles(dt);
+  updateEnemies(dt);
+  checkPickups();
+  cullFarObjects();
+  updateDayNight(dt);
+  updateHUD();
+
+  // chest highlight
+  for(const c of chests){
+    if(player.position.distanceTo(c.position) < 3.0 && c.userData && !c.userData.opened) c.material.emissive.set(0x333333);
+    else c.material.emissive.set(0x000000);
+  }
+
+  renderer.render(scene, camera);
+}
+
+/* ============ Startup helpers ============ */
+$('gfx').value = 'Medium'; $('vol').value = 60;
+for(let i=0;i<9;i++){ const el = $('slot'+i); el.querySelector('.label').innerText = (i+1); el.querySelector('.count').innerText = ''; }
+
+/* make hotbar selectable via mouse as well */
+document.querySelectorAll('#hotbar .slot').forEach((el, idx) => {
+  el.addEventListener('click', ()=> { currentSlot = idx; updateHotbarUI(); });
+});
+
+/* export debug helpers for console */
+window.addWeaponToInventory = addWeaponToInventory;
+window.spawnPickup = spawnPickup;
+window.getBiome = getBiome;
+
+console.log('Updated game script (optimized) loaded — paste into index.html and start the game');
+
+</script>
+
+<script>
+/* ===== Day / Night System with Visible Sun ===== */
+
+let gameTime = 0; // 0-1 full day
+const DAY_LENGTH = 300; // seconds
+
+const sunMesh = new THREE.Mesh(
+  new THREE.SphereGeometry(30,32,32),
+  new THREE.MeshBasicMaterial({color:0xffee88})
+);
+scene.add(sunMesh);
+
+function updateDayNight(dt){
+
+  gameTime += dt / DAY_LENGTH;
+  if(gameTime > 1) gameTime = 0;
+
+  const angle = gameTime * Math.PI * 2;
+
+  const sunX = Math.cos(angle) * 400;
+  const sunY = Math.sin(angle) * 400;
+
+  sunMesh.position.set(sunX, sunY, -200);
+
+  if(window.sunLight){
+    sunLight.position.copy(sunMesh.position);
+  }
+
+  // sky color
+  if(sunY > 0){
+    scene.background = new THREE.Color(0x87CEEB); // day blue
+  }else{
+    scene.background = new THREE.Color(0x0b1026); // night
+  }
+
+}
+
+/* Hook into main game loop */
+const oldAnimate = animate;
+animate = function(){
+
+  requestAnimationFrame(animate);
+
+  const dt = clock.getDelta();
+
+  updateDayNight(dt);
+
+  oldAnimate();
+
+}
+
+/* ===== Night Zombie Spawning ===== */
+
+function spawnZombie(){
+
+  const z = new THREE.Mesh(
+    new THREE.BoxGeometry(1.8,4,1.8),
+    new THREE.MeshStandardMaterial({color:0x2f6b2f})
+  );
+
+  z.position.set(
+    player.position.x + (Math.random()-0.5)*120,
+    2,
+    player.position.z + (Math.random()-0.5)*120
+  );
+
+  scene.add(z);
+
+  if(window.enemies) enemies.push(z);
+
+}
+
+function zombieSpawner(){
+
+  const sunHeight = sunMesh.position.y;
+
+  if(sunHeight < 0){ // NIGHT ONLY
+
+    const amount = 10 + Math.floor(Math.random()*20);
+
+    for(let i=0;i<amount;i++){
+      spawnZombie();
+    }
+
+  }
+
+}
+
+setInterval(zombieSpawner,15000);
+
+
+/* ===== Visible Bullets Upgrade ===== */
+
+if(window.PROJECTILE_GEOMETRY){
+  PROJECTILE_GEOMETRY = new THREE.SphereGeometry(0.35,10,10);
+}
+if(window.PROJECTILE_MAT){
+  PROJECTILE_MAT = new THREE.MeshBasicMaterial({color:0xffff00});
+}
+
+/* ===== Bigger Villages / Towns ===== */
+
+function spawnHugeTown(x,z){
+
+  const buildings = 30 + Math.floor(Math.random()*20);
+
+  for(let i=0;i<buildings;i++){
+
+    const b = new THREE.Mesh(
+      new THREE.BoxGeometry(6,8+Math.random()*20,6),
+      new THREE.MeshStandardMaterial({color:0x8b6f47})
+    );
+
+    b.position.set(
+      x + (Math.random()-0.5)*120,
+      b.geometry.parameters.height/2,
+      z + (Math.random()-0.5)*120
+    );
+
+    scene.add(b);
+  }
+
+}
+
+/* ===== Supply Drops ===== */
+
+function supplyDrop(){
+
+  const crate = new THREE.Mesh(
+    new THREE.BoxGeometry(2,2,2),
+    new THREE.MeshStandardMaterial({color:0xffaa00})
+  );
+
+  crate.position.set(
+    player.position.x + (Math.random()-0.5)*300,
+    50,
+    player.position.z + (Math.random()-0.5)*300
+  );
+
+  scene.add(crate);
+
+  function fall(){
+    crate.position.y -= 0.5;
+    if(crate.position.y > 1){
+      requestAnimationFrame(fall);
+    }
+  }
+
+  fall();
+
+}
+
+setInterval(supplyDrop,60000);
+
+</script>
+
+
+<!-- ===== GAME UPGRADE PATCH (sun, bigger villages, health stack) ===== -->
+<script>
+
+let sunMesh;
+let dayTime = 0;
+const daySpeed = 0.02;
+
+function setupVisibleSun(){
+    if(!window.scene) return;
+
+    sunMesh = new THREE.Mesh(
+        new THREE.SphereGeometry(40,32,32),
+        new THREE.MeshBasicMaterial({color:0xffee88})
+    );
+    scene.add(sunMesh);
+}
+
+function updateSunCycle(dt){
+
+    if(!window.sun) return;
+
+    dayTime += daySpeed * dt;
+    if(dayTime > 1) dayTime = 0;
+
+    const angle = dayTime * Math.PI * 2;
+
+    const x = Math.cos(angle) * 600;
+    const y = Math.sin(angle) * 600;
+
+    sun.position.set(x,y,200);
+
+    if(sunMesh){
+        sunMesh.position.set(x,y,-400);
+    }
+
+    if(y < 0){
+        scene.background = new THREE.Color(0x0b1026);
+        if(window.ambientLight) ambientLight.intensity = 0.3;
+        sun.intensity = 0.2;
+    }else{
+        scene.background = new THREE.Color(0x87CEEB);
+        if(window.ambientLight) ambientLight.intensity = 0.9;
+        sun.intensity = 1.0;
+    }
+}
+
+
+if(typeof spawnVillage !== "undefined"){
+
+    const oldSpawnVillage = spawnVillage;
+
+    spawnVillage = function(cx,cz){
+
+        const houses = 30 + Math.floor(Math.random()*20);
+
+        for(let i=0;i<houses;i++){
+
+            const house = createHouse ? createHouse() :
+            new THREE.Mesh(
+                new THREE.BoxGeometry(6,8+Math.random()*10,6),
+                new THREE.MeshStandardMaterial({color:0x8b6f47})
+            );
+
+            const angle = Math.random()*Math.PI*2;
+            const dist = 20 + Math.random()*120;
+
+            house.position.set(
+                cx + Math.cos(angle)*dist,
+                house.geometry ? house.geometry.parameters.height/2 : 5,
+                cz + Math.sin(angle)*dist
+            );
+
+            scene.add(house);
+        }
+
+    }
+
+}
+
+
+window.healthPacks = 0;
+
+function pickupHealthPack(){
+    healthPacks++;
+}
+
+function useHealthPack(){
+
+    if(healthPacks <= 0) return;
+
+    if(window.player){
+        player.health = Math.min(player.health + 25, player.maxHealth || 100);
+    }
+
+    healthPacks--;
+}
+
+
+const oldAnimateLoop = window.animate;
+
+window.animate = function(){
+
+    requestAnimationFrame(animate);
+
+    let dt = 0.016;
+    if(window.clock) dt = clock.getDelta();
+
+    updateSunCycle(dt);
+
+    if(oldAnimateLoop) oldAnimateLoop();
+}
+
+setTimeout(setupVisibleSun,1000);
+
+</script>
+
+
+<!-- ===== SAFE FEATURE PATCH ===== -->
+<script>
+
+/* -------- Visible Bullets (override if tiny) -------- */
+if(typeof PROJECTILE_GEOMETRY !== "undefined"){
+  PROJECTILE_GEOMETRY = new THREE.SphereGeometry(0.35,12,12);
+}
+if(typeof PROJECTILE_MAT !== "undefined"){
+  PROJECTILE_MAT = new THREE.MeshBasicMaterial({color:0xffff00});
+}
+
+/* -------- Day/Night + Visible Sun -------- */
+
+let visibleSun;
+let cycleTime = 0;
+
+function createVisibleSun(){
+  if(!window.scene) return;
+
+  visibleSun = new THREE.Mesh(
+    new THREE.SphereGeometry(50,32,32),
+    new THREE.MeshBasicMaterial({color:0xffee88})
+  );
+
+  scene.add(visibleSun);
+}
+
+function updateDayNightCycle(dt){
+
+  if(!window.sun) return;
+
+  cycleTime += dt * 0.02;
+  if(cycleTime > 1) cycleTime = 0;
+
+  const angle = cycleTime * Math.PI * 2;
+
+  const sx = Math.cos(angle) * 800;
+  const sy = Math.sin(angle) * 800;
+
+  sun.position.set(sx,sy,300);
+
+  if(visibleSun){
+    visibleSun.position.set(sx,sy,-600);
+  }
+
+  if(sy < 0){
+    scene.background = new THREE.Color(0x0b1026);
+    if(window.ambientLight) ambientLight.intensity = 0.3;
+    sun.intensity = 0.2;
+  } else {
+    scene.background = new THREE.Color(0x87CEEB);
+    if(window.ambientLight) ambientLight.intensity = 0.9;
+    sun.intensity = 1.0;
+  }
+
+}
+
+/* -------- Bigger Villages -------- */
+
+if(typeof spawnVillage !== "undefined"){
+
+  const originalVillage = spawnVillage;
+
+  spawnVillage = function(cx,cz){
+
+    const buildings = 40 + Math.floor(Math.random()*20);
+
+    for(let i=0;i<buildings;i++){
+
+      const house = new THREE.Mesh(
+        new THREE.BoxGeometry(6,8+Math.random()*12,6),
+        new THREE.MeshStandardMaterial({color:0x8b6f47})
+      );
+
+      const angle = Math.random()*Math.PI*2;
+      const dist = 40 + Math.random()*160;
+
+      house.position.set(
+        cx + Math.cos(angle)*dist,
+        house.geometry.parameters.height/2,
+        cz + Math.sin(angle)*dist
+      );
+
+      scene.add(house);
+    }
+
+  }
+
+}
+
+/* -------- Stackable Health Packs -------- */
+
+window.healthPackCount = window.healthPackCount || 0;
+
+function pickupHealthPack(){
+  healthPackCount++;
+}
+
+function useHealthPack(){
+
+  if(healthPackCount <= 0) return;
+
+  if(window.player){
+    player.health = Math.min(player.health + 25, player.maxHealth || 100);
+  }
+
+  healthPackCount--;
+
+}
+
+/* -------- Night Zombie Boost -------- */
+
+function nightZombieBoost(){
+
+  if(!window.enemies) return;
+  if(!visibleSun) return;
+
+  if(visibleSun.position.y < 0){
+
+    const spawnCount = 10 + Math.floor(Math.random()*15);
+
+    for(let i=0;i<spawnCount;i++){
+
+      const z = new THREE.Mesh(
+        new THREE.BoxGeometry(2,4,2),
+        new THREE.MeshStandardMaterial({color:0x2f6b2f})
+      );
+
+      if(window.player){
+        z.position.set(
+          player.position.x + (Math.random()-0.5)*200,
+          2,
+          player.position.z + (Math.random()-0.5)*200
+        );
+      }
+
+      scene.add(z);
+      enemies.push(z);
+    }
+
+  }
+
+}
+
+setInterval(nightZombieBoost,15000);
+
+/* -------- Hook into animate loop -------- */
+
+const oldLoop = window.animate;
+
+window.animate = function(){
+
+  requestAnimationFrame(animate);
+
+  let dt = 0.016;
+  if(window.clock) dt = clock.getDelta();
+
+  updateDayNightCycle(dt);
+
+  if(oldLoop) oldLoop();
+}
+
+setTimeout(createVisibleSun,1000);
+
+</script>
+
+</body>
+</html>
